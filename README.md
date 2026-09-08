@@ -1,1 +1,128 @@
-# git
+# AX210 CSI 存在检测：RapidPD MATLAB 实现
+
+读取两台 AX210 主机一发一收采集的 PicoScenes `.csi`，参考 RapidPD 论文实现子载波维多层自相关存在检测，沿用 Desay 的 `codes/my_function` 封装与四维 CSI 数据组织。
+
+## 快速运行
+
+### 推荐：每次只处理两份工作区数据
+
+先将两个 `.csi` 按现有 PicoScenes 导入方式拖拽解析到 MATLAB 工作区，再传入**实际变量名**：
+
+```matlab
+addpath('C:/Users/13059/Documents/ChatGPT/git/codes');
+R = runPair(rx_2_260904_171616, rx_2_260904_180803);
+```
+
+只处理这两个输入，不扫描 `data`，不重新读取工作区变量对应的源文件。图会立即显示，`R(1).windows` 和 `R(2).windows` 是两份逐窗口分数表；PNG、CSV、MAT 同时保存到 `results/pair_时间/`。横轴是各自采集起点后的秒数，无效窗口保留断线；不做有人/无人判决。
+
+也可以直接传入两个文件路径，省去先解析到工作区的步骤：
+
+```matlab
+R = runPair('F:/BaiduNetdiskDownload/csi/csi (1)一人/rx_2_260904_171616.csi', ...
+            'F:/BaiduNetdiskDownload/csi/csi(2)二人+无人/rx_2_260904_180803.csi');
+```
+
+支持 `read_rxs_log` 的原始 cell、原始 struct 数组，以及 `parseCSIFile/parseRXSBundle` 产生的合并 struct 或 cell 包装。裸 CSI 矩阵缺少时间戳/维度元数据，不接受。若工具箱返回自定义对象，请使用其原始 cell/struct 导入形式。
+
+**工作区导入与路径导入的区别：**官方默认拖拽解析通常包含插值预处理；工作区输入保留这些已处理数值，并在命令行提示。路径输入继续使用本项目的 `RXSParser(...,false)` 关闭插值，因此两种导入方式的数值可能不同；对比两份实验时应使用一致的导入方法。
+
+### 批量处理整个 data 目录
+
+已在本机 MATLAB R2024b 和现有 PicoScenes 官方 MEX 上验证。算法不依赖 Signal Processing Toolbox 或 Parallel Computing Toolbox；ACF 用 MATLAB 内置 FFT 实现。
+
+在项目根目录运行：
+
+```matlab
+addpath('codes');
+[summary, results] = main;
+```
+
+默认处理 `data` 下全部 `.csi` 文件，保存到 `results/运行时间/`：每个物理配置分组的窗口 CSV、诊断 PNG、`summary.csv`、`results.mat` 和 `config.json`。默认阈值未设置，只有分数，二值判决为 NaN。
+
+运行完成会显示分数对比图，不需要先设置阈值。默认只选 HE-SU 帧（`packet_formats=3`），避免把周围设备的普通 Wi-Fi 流量混进实验；探索所有帧可传入 `'packet_formats',[]`。`'source_mac','xx:xx:xx:xx:xx:xx'` 可以进一步限定实验发射端。
+
+只想看已有结果，不重跑采集文件：
+
+```matlab
+addpath('codes');
+plotComparison;                 % 自动打开最新批处理的分数对比图
+plotProcessing;                 % 样例的 6 个处理阶段图
+% 或选择自己的文件
+plotProcessing('data/csi(2)二人+无人/rx_2_260904_180942.csi');
+```
+
+无标签对比图使用同一源和物理配置的首、尾两份采集文件，图例为文件名，不赋予有人/无人含义。下方显示同配置各文件的均值和最小/最大值。`plotProcessing` 显示原始幅值、归一化幅值、首个有效窗的残差、该窗中间包的 1/2/3 层 ACF、逐窗口各层 lag-1 分数及最终分数，导出到 `results/processing/`。全部是真实数据，不为贴近论文图而调整数值。
+
+当前按用户指定，结果中同时存在 `171616` 和 `180803` 时，`plotComparison` 默认比较这两份文件；也可直接运行 `compareRecordings`。两条线各保留原有窗口数，不截短或补点。两份数据的源 MAC 不同，图只用于观察原始处理分数，不代表控制了全部采集条件的分类验证。其他数据集仍使用上述自动选择规则。
+
+批处理不希望弹出图窗时用 `main('show_figures',false)`；连图文件也不需要时用 `main('make_plots',false)`。
+
+```matlab
+% 先处理单个样例
+[summary, results] = main('file_pattern','rx_2_260904_154612.csi');
+
+% 显式传入探索性阈值；0.43 来自论文，未在当前数据上校准
+main('threshold',0.43,'file_pattern','rx_2_260904_154612.csi');
+
+% 比较论文公式字面解释与默认工程解释
+main('acf_mode','literal','time_aggregation','sum','stream_aggregation','sum');
+
+% 运行回归检查
+addpath('codes/tests'); testRapidPD;
+```
+
+工具箱未加入路径时：
+
+```matlab
+main('parser_path','C:/Users/13059/PicoScenes-MATLAB-Toolbox-Core');
+```
+
+其他机器需按 [PicoScenes 官方说明](https://github.com/wifisensing/PicoScenes-MATLAB-Toolbox-Core) 安装/编译 `RXSParser`。本工程不自动修改系统工具箱文件。
+
+## 文件组织
+
+```text
+codes/
+  main.m                    批处理入口、CSV/MAT/图表输出
+  calibrateThreshold.m      有真实标签后的阈值校准
+  buildLabeledWindows.m     将人工时间段标签转换为窗口标签
+  my_function/
+    configLoad.m            所有可配置参数
+    setupParser.m           检查官方解析器
+    fileLoad.m              逐帧读取、数据审计、物理配置分组
+    winSplit.m              按实际时间分窗/抽包/缺包检查
+    csiComplexNorm.m        逐包幅值和归一化
+    multiLayerACF.m         子载波维线性多层 ACF
+    winProcess.m            单窗分数计算
+    labelFilt.m             因果多数投票
+    resDisp.m               诊断图
+  tests/testRapidPD.m        数学与真实数据检查
+data/                       29 个采集文件（仅本地，不提交 Git）
+  manifest.csv              路径、字节数、SHA-256
+  labels.csv                待补全的时间段标签
+docs/algorithm.md           公式映射、歧义、适配边界
+results/                    自动生成，不提交 Git
+```
+
+## 校准与验证
+
+先补充 `data/labels.csv` 中无人/有人时间段。`buildLabeledWindows` 会选择完全落在已知区间内的有效窗口，转换为供 `calibrateThreshold` 使用的窗口级标注表。
+
+选择同一 profile（发射端/物理参数）、同一算法配置的分数。不同 profile 分别校准；按文件划分 calibration/test，避免重叠窗口或同一采集文件泄漏。函数拒绝混合 profile 和同文件跨数据集。
+
+```matlab
+T = buildLabeledWindows('results/运行时间/results.mat','data/labels.csv','labeled_windows.csv');
+assert(~isempty(T),'请先补全真实标签');
+% 若有多个 profile，先选一个，分别校准
+T = T(T.profile == T.profile(1),:);
+M = calibrateThreshold(T,'threshold_model.mat');
+main('threshold',M.threshold,'threshold_profile',M.profile);
+```
+
+该调用仅对匹配 profile 应用阈值，其他组继续只输出分数。算法参数必须与校准时一致。校准目标为原始单窗口的 balanced accuracy；`test_*` 也是未平滑窗口指标，不冒充 3 窗投票指标。只有一类标签时拒绝校准。
+
+`0/1` 是存在与否，不是人数；`NaN` 表示未设置阈值、数据无效或投票未预热，不能解释成无人。
+
+## 与论文的对应
+
+默认流程为幅值和归一化 → 当前窗均值背景相减 → 3 层子载波维 ACF → lag=1 → 包/流平均 → 阈值 → 最近 3 窗多数投票。论文式 (17)、(19) 存在歧义，默认实现选择与完整说明见 [算法说明](docs/algorithm.md)。这是一套可运行的论文流程实现，尚无当前数据的准确率结论。
