@@ -2,10 +2,11 @@ function [Result,fig] = runPair(dataA,dataB,varargin)
 %RUNPAIR 仅处理两个输入：工作区已解析的变量，或者两个 .csi 路径。
 % [R,fig]=runPair(rx_2_260904_171616,rx_2_260904_180803);
 % [R,fig]=runPair('D:/a.csi','D:/b.csi');
-% 可加 'show_figures',false 等 configLoad 参数；始终只输出分数。
+% 可加 'show_figures',false 等 configLoad 参数；默认只输出分数。
 assert(nargin>=2,'RapidPD:Inputs','请输入两份已解析变量，或两个 .csi 文件路径。');
 codeDir=fileparts(mfilename('fullpath')); addpath(fullfile(codeDir,'my_function'));
 C=configLoad(varargin{:}); C.threshold=NaN;
+fprintf('幅度补偿：paper_normalization（AX210 帧无 Desay 等价 AGC 总增益字段）。\n');
 inputs={dataA,dataB}; names=string({inputname(1),inputname(2)});
 Result=struct('name',{},'audit',{},'metadata',{},'windows',{},'config',{});
 for j=1:2
@@ -40,14 +41,14 @@ for j=1:2
         names(j),size(g.csi_raw,3),sum(valid),mean(score,'omitnan'));
 end
 visibility='off'; if C.show_figures, visibility='on'; end
-fig=figure('Name','RapidPD - two inputs','Visible',visibility,'Color','w','Position',[100 100 1100 500]);
+fig=figure('Name','Desay FACF - two inputs','Visible',visibility,'Color','w','Position',[100 100 1100 500]);
 styles={'-','--'};
 for j=1:2
     W=Result(j).windows;
     plot(W.stop,W.score,styles{j},'LineWidth',1.4); hold on;
 end
 legend(names,'Interpreter','none','Location','best'); grid on;
-title('Motion Statistics in Subcarrier Dimension');
+title('Desay FACF Motion Statistics (20 packets/window)');
 xlabel('Time from each recording start (s)'); ylabel('Motion statistics');
 out=fullfile(C.path_res,['pair_' char(datetime('now','Format','yyyyMMdd_HHmmss_SSS'))]); mkdir(out);
 for j=1:2, writetable(Result(j).windows,fullfile(out,sprintf('input_%d.csv',j))); end

@@ -16,6 +16,6 @@ if any(isfinite(W.raw))
     xlim([min(W.start),max(W.stop)]);
 end
 nexttile; plot(W.stop,W.packets,'LineWidth',1); hold on;
-yline(Config.min_packets,':r'); ylabel('Packets/window'); xlabel('Time from file start (s)'); grid on;
+yline(Config.window_packets,':r'); ylabel('Packets/window'); xlabel('Time from file start (s)'); grid on;
 exportgraphics(f,path,'Resolution',130);
 end

@@ -3,6 +3,7 @@ function [Summary, Results] = main(varargin)
 % 默认只输出分数；main('threshold',0.43) 为未校准的演示判决。
 codeDir=fileparts(mfilename('fullpath')); addpath(fullfile(codeDir,'my_function'));
 Config=configLoad(varargin{:}); setupParser(Config);
+fprintf('幅度补偿：%s（AX210 帧无 Desay 等价 AGC 总增益字段）。\n',Config.amplitude_compensation);
 files=dir(fullfile(Config.path_data,'**',Config.file_pattern));
 assert(~isempty(files),'RapidPD:NoFiles','%s 内未找到 .csi 文件。',Config.path_data);
 runDir=fullfile(Config.path_res,char(datetime('now','Format','yyyyMMdd_HHmmss_SSS')));

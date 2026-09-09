@@ -16,17 +16,11 @@ for j=1:2
     assert(R2(j).audit.corrupt==0 && R2(j).audit.frames==80);
     assert(isequal(R2(j).metadata.timestamp_ns,R1(j).metadata.timestamp_ns));
 end
-R3=runPair(fa,fb,'show_figures',false);
-old=load(fullfile(root,'results','20260908_113643_206','results.mat'),'Results');
+R3=runPair(fa,fb,'show_figures',false,'path_res',out);
 for j=1:2
-    name=R3(j).name;
-    for k=1:numel(old.Results)
-        [~,oldName]=fileparts(old.Results{k}.file);
-        if string(oldName)==name
-            assert(isequaln(R3(j).windows.score,old.Results{k}.groups{1}.windows.score));
-        end
-    end
     assert(~R3(j).audit.from_workspace && R3(j).audit.interpolated_frames==0);
+    assert(all(R3(j).windows.packets==20) && all(R3(j).windows.valid));
+    assert(all(isfinite(R3(j).windows.score)));
 end
-fprintf('PASS: pair paths, raw cells and merged workspace bundles.\n');
+fprintf('PASS: pair inputs and fixed 20-packet Desay FACF windows.\n');
 end

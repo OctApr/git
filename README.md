@@ -1,6 +1,6 @@
 # AX210 CSI 存在检测：RapidPD MATLAB 实现
 
-读取两台 AX210 主机一发一收采集的 PicoScenes `.csi`，参考 RapidPD 论文实现子载波维多层自相关存在检测，沿用 Desay 的 `codes/my_function` 封装与四维 CSI 数据组织。
+读取两台 AX210 主机一发一收采集的 PicoScenes `.csi`。第二轮算法复现 Desay FACF 的固定20包、循环包对差分、两层单边 ACF 和整体归一化相关；AX210 没有输出 Desay 所需的 AGC 增益字段，因此幅度补偿采用 RapidPD 论文的逐包幅值和归一化。
 
 ## 快速运行
 
@@ -13,7 +13,7 @@ addpath('C:/Users/13059/Documents/ChatGPT/git/codes');
 R = runPair(rx_2_260904_171616, rx_2_260904_180803);
 ```
 
-只处理这两个输入，不扫描 `data`，不重新读取工作区变量对应的源文件。图会立即显示，`R(1).windows` 和 `R(2).windows` 是两份逐窗口分数表；PNG、CSV、MAT 同时保存到 `results/pair_时间/`。横轴是各自采集起点后的秒数，无效窗口保留断线；不做有人/无人判决。
+只处理这两个输入，不扫描 `data`，不重新读取工作区变量对应的源文件。图会立即显示，`R(1).windows` 和 `R(2).windows` 是两份逐窗口分数表；PNG、CSV、MAT 同时保存到 `results/pair_时间/`。每窗严格使用20个连续包，末尾不足20包的数据丢弃；横轴来自实际时间戳，不做有人/无人判决。
 
 也可以直接传入两个文件路径，省去先解析到工作区的步骤：
 
@@ -28,7 +28,7 @@ R = runPair('F:/BaiduNetdiskDownload/csi/csi (1)一人/rx_2_260904_171616.csi', 
 
 ### 批量处理整个 data 目录
 
-已在本机 MATLAB R2024b 和现有 PicoScenes 官方 MEX 上验证。算法不依赖 Signal Processing Toolbox 或 Parallel Computing Toolbox；ACF 用 MATLAB 内置 FFT 实现。
+已在本机 MATLAB R2024b 和现有 PicoScenes 官方 MEX 上验证。算法不依赖 Signal Processing Toolbox 或 Parallel Computing Toolbox；`xcorr(...,'unbiased')` 的等价计算由 MATLAB 内置 FFT 实现。
 
 在项目根目录运行：
 
@@ -46,12 +46,10 @@ addpath('codes');
 ```matlab
 addpath('codes');
 plotComparison;                 % 自动打开最新批处理的分数对比图
-plotProcessing;                 % 样例的 6 个处理阶段图
-% 或选择自己的文件
-plotProcessing('data/csi(2)二人+无人/rx_2_260904_180942.csi');
+plotProcessing('data/csi(2)二人+无人/rx_2_260904_180803.csi');
 ```
 
-无标签对比图使用同一源和物理配置的首、尾两份采集文件，图例为文件名，不赋予有人/无人含义。下方显示同配置各文件的均值和最小/最大值。`plotProcessing` 显示原始幅值、归一化幅值、首个有效窗的残差、该窗中间包的 1/2/3 层 ACF、逐窗口各层 lag-1 分数及最终分数，导出到 `results/processing/`。全部是真实数据，不为贴近论文图而调整数值。
+无标签对比图使用文件名作为图例，不自动赋予有人/无人含义。`plotProcessing` 显示原始幅值、论文式幅度补偿、包对差分、第一层单边 ACF、第二层单边 ACF和逐窗口整体相关分数，导出到 `results/processing/`。全部是真实数据，不为贴近论文图而调整数值。
 
 当前按用户指定，结果中同时存在 `171616` 和 `180803` 时，`plotComparison` 默认比较这两份文件；也可直接运行 `compareRecordings`。两条线各保留原有窗口数，不截短或补点。两份数据的源 MAC 不同，图只用于观察原始处理分数，不代表控制了全部采集条件的分类验证。其他数据集仍使用上述自动选择规则。
 
@@ -59,13 +57,13 @@ plotProcessing('data/csi(2)二人+无人/rx_2_260904_180942.csi');
 
 ```matlab
 % 先处理单个样例
-[summary, results] = main('file_pattern','rx_2_260904_154612.csi');
+[summary, results] = main('file_pattern','rx_2_260904_171616.csi');
 
 % 显式传入探索性阈值；0.43 来自论文，未在当前数据上校准
-main('threshold',0.43,'file_pattern','rx_2_260904_154612.csi');
+main('threshold',0.43,'file_pattern','rx_2_260904_171616.csi');
 
-% 比较论文公式字面解释与默认工程解释
-main('acf_mode','literal','time_aggregation','sum','stream_aggregation','sum');
+% 默认跨流平均与 Desay 一致；也可显式查看跨流求和尺度
+main('stream_aggregation','sum');
 
 % 运行回归检查
 addpath('codes/tests'); testRapidPD;
@@ -90,10 +88,10 @@ codes/
     configLoad.m            所有可配置参数
     setupParser.m           检查官方解析器
     fileLoad.m              逐帧读取、数据审计、物理配置分组
-    winSplit.m              按实际时间分窗/抽包/缺包检查
-    csiComplexNorm.m        逐包幅值和归一化
-    multiLayerACF.m         子载波维线性多层 ACF
-    winProcess.m            单窗分数计算
+    winSplit.m              连续数据包固定20包分窗
+    csiComplexNorm.m        论文式逐包幅值和归一化
+    desayFACF.m             包对差分、两层单边ACF与整体相关
+    winProcess.m            多天线流单窗分数计算
     labelFilt.m             因果多数投票
     resDisp.m               诊断图
   tests/testRapidPD.m        数学与真实数据检查
@@ -125,4 +123,4 @@ main('threshold',M.threshold,'threshold_profile',M.profile);
 
 ## 与论文的对应
 
-默认流程为幅值和归一化 → 当前窗均值背景相减 → 3 层子载波维 ACF → lag=1 → 包/流平均 → 阈值 → 最近 3 窗多数投票。论文式 (17)、(19) 存在歧义，默认实现选择与完整说明见 [算法说明](docs/algorithm.md)。这是一套可运行的论文流程实现，尚无当前数据的准确率结论。
+默认流程为论文式逐包幅值和归一化 → Desay 循环包对差分 → 两层正延迟 `unbiased` ACF → 循环移位 → 窗口整体归一化相关 → 跨流平均。完整定义和 AGC 边界见 [算法说明](docs/algorithm.md)。当前未设置分类阈值，曲线不能直接解释为检测准确率。
