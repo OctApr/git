@@ -98,7 +98,8 @@ codes/
 data/                       29 个采集文件（仅本地，不提交 Git）
   manifest.csv              路径、字节数、SHA-256
   labels.csv                待补全的时间段标签
-docs/algorithm.md           公式映射、歧义、适配边界
+  docs/algorithm.md           公式映射、歧义、适配边界
+  docs/reproduction_matrix.md 每轮论文/Desay/当前代码复现状态表
 results/                    自动生成，不提交 Git
 ```
 
