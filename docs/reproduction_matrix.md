@@ -11,7 +11,7 @@
 
 | 环节 | RapidPD 论文 | Desay 代码 | 当前第二轮代码 | 状态与影响 |
 |---|---|---|---|---|
-| 硬件与 CSI 来源 | Infineon CYW8x459，论文实验为20 Hz、80 MHz | Desay 自定义 CSI 格式，含 `sts_tot_gain/agc` | Intel AX210 + PicoScenes；实测帧为980 tones × 1发送空间流 × 2接收链 | **存在差异**；硬件噪声和子载波数量不同 |
+| 硬件与 CSI 来源 | Infineon CYW8x459，论文实验为20 Hz、80 MHz | Desay 自定义 CSI 格式，含 `sts_tot_gain/agc` | Intel AX210 + PicoScenes；关闭插值为980 tones，工作区默认插值为1001 tones；均为1发送空间流 × 2接收链 | **存在差异**；硬件、频率栅格和噪声统计不同 |
 | 数据组织 | 每个 Tx-Rx 流独立处理 | `[Tx,Rx,Packet,Subcarrier]` | 相同四维顺序 | **完全复现 Desay** |
 | 窗口 | 1秒、20 Hz，即20包 | 主程序固定20包，步长20包 | 固定20个连续包，步长20包 | **完全复现 Desay**；也符合论文实验包数 |
 | AGC 字段逆补偿 | 先取得 AGC 补偿后的幅度，再处理其不完美残差 | 每接收链除以 `10^(agc/20)` | AX210 帧没有等价总增益字段，未执行字段逆补偿 | **尚未实现 Desay AGC** |
