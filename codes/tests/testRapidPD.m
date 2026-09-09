@@ -14,6 +14,8 @@ assert(max(abs(csiComplexNorm(a)-csiComplexNorm(a.*scale)),[],'all')<1e-14);
 
 H=csiComplexNorm(a); got=desayFACF(H,3,1); expected=referenceFACF(H,3,1);
 assert(abs(got-expected)<1e-11);
+got4=desayFACF(H,3,4); expected4=referenceFACF(H,3,4);
+assert(abs(got4-expected4)<1e-11);
 csi=reshape(a,1,1,20,31); detail=winProcess(csi,C);
 assert(abs(detail.score-expected)<1e-11);
 assert(detail.agc_compensation=="paper_normalization" && isnan(detail.present));
