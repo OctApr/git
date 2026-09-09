@@ -15,6 +15,8 @@ for j=1:2
     assert(R1(j).audit.from_workspace && R2(j).audit.from_workspace);
     assert(R2(j).audit.corrupt==0 && R2(j).audit.frames==80);
     assert(isequal(R2(j).metadata.timestamp_ns,R1(j).metadata.timestamp_ns));
+    assert(R2(j).metadata.ntx==1 && R2(j).metadata.nrx==2);
+    assert(numel(R2(j).metadata.subcarrier_index)==1001);
 end
 R3=runPair(fa,fb,'show_figures',false,'path_res',out);
 for j=1:2
