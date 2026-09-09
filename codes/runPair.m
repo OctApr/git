@@ -22,21 +22,23 @@ for j=1:2
     end
     assert(numel(groups)==1,'RapidPD:Groups', ...
         '%s 得到 %d 个物理分组；请用 source_mac/packet_formats 筛选或传入单一分组。',names(j),numel(groups));
-    g=groups(1); w=winSplit(g.time_seconds,C); N=numel(w);
+    g=groups(1); selectedRx=selectRxIndices(g.nrx,C);
+    w=winSplit(g.time_seconds,C); N=numel(w);
     start=nan(N,1); stop=start; score=start; packets=zeros(N,1); valid=false(N,1);
-    stream=nan(N,g.ntx*g.nrx);
+    stream=nan(N,g.ntx*numel(selectedRx));
     for wi=1:N
         start(wi)=w(wi).start; stop(wi)=w(wi).stop;
         packets(wi)=numel(w(wi).indices); valid(wi)=w(wi).valid;
         if ~valid(wi), continue; end
-        d=winProcess(g.csi_raw(:,:,w(wi).indices,:),C);
+        d=winProcess(g.csi_raw(:,selectedRx,w(wi).indices,:),C);
         score(wi)=d.score; stream(wi,:)=d.stream_statistics;
     end
     assert(any(valid),'RapidPD:NoWindows','%s 没有有效时间窗口。',names(j));
     W=table(start,stop,packets,valid,score);
     for si=1:size(stream,2), W.(sprintf('stream_%d',si))=stream(:,si); end
+    metadata=rmfield(g,{'csi_raw','packet_csi'}); metadata.selected_rx_indices=selectedRx;
     Result(j)=struct('name',names(j),'audit',audit, ...
-        'metadata',rmfield(g,{'csi_raw','packet_csi'}),'windows',W,'config',C);
+        'metadata',metadata,'windows',W,'config',C);
     fprintf('%s：%d 包，%d 个有效窗口，平均运动分数 %.6f\n', ...
         names(j),size(g.csi_raw,3),sum(valid),mean(score,'omitnan'));
 end

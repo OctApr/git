@@ -18,22 +18,23 @@ for fi=1:numel(files)
         summaryRows(end+1,:)={relative,0,"",NaN,NaN,0,0,0,NaN,NaN,NaN,NaN,"no_valid_frames"}; %#ok<AGROW>
     end
     for gi=1:numel(groups)
-        g=groups(gi); wins=winSplit(g.time_seconds,Config); n=numel(wins);
-        profile=string(sprintf('%s_fmt%d_bw%d_fc%.0f_tx%d_rx%d_sc%d', ...
+        g=groups(gi); selectedRx=selectRxIndices(g.nrx,Config);
+        wins=winSplit(g.time_seconds,Config); n=numel(wins);
+        profile=string(sprintf('%s_fmt%d_bw%d_fc%.0f_tx%d_rx%d_sel%s_sc%d', ...
             g.source_mac,g.packet_format,g.bandwidth_mhz,g.carrier_hz,g.ntx,g.nrx, ...
-            numel(g.subcarrier_index)));
+            sprintf('%d-',selectedRx),numel(g.subcarrier_index)));
         groupConfig=Config;
         if strlength(string(Config.threshold_profile))>0 && profile~=string(Config.threshold_profile)
             groupConfig.threshold=NaN;
         end
         start=nan(n,1); stop=start; packets=zeros(n,1); maxGap=start;
         score=start; scoreMean=start; scoreSum=start; streamSum=start; raw=start;
-        streams=nan(n,g.ntx*g.nrx); valid=false(n,1);
+        streams=nan(n,g.ntx*numel(selectedRx)); valid=false(n,1);
         for wi=1:n
             w=wins(wi); start(wi)=w.start; stop(wi)=w.stop;
             packets(wi)=numel(w.indices); maxGap(wi)=w.max_gap; valid(wi)=w.valid;
             if ~w.valid, continue; end
-            d=winProcess(g.csi_raw(:,:,w.indices,:),groupConfig);
+            d=winProcess(g.csi_raw(:,selectedRx,w.indices,:),groupConfig);
             score(wi)=d.score; scoreMean(wi)=d.score_mean; scoreSum(wi)=d.score_sum;
             streamSum(wi)=d.score_stream_sum; raw(wi)=d.present;
             streams(wi,:)=d.stream_statistics;
@@ -42,7 +43,7 @@ for fi=1:numel(files)
         windows=table(start,stop,packets,maxGap,valid,score,scoreMean,scoreSum,streamSum,raw,smooth);
         windows.profile=repmat(profile,n,1);
         for si=1:size(streams,2), windows.(sprintf('stream_%d',si))=streams(:,si); end
-        metadata=rmfield(g,{'csi_raw','packet_csi'});
+        metadata=rmfield(g,{'csi_raw','packet_csi'}); metadata.selected_rx_indices=selectedRx;
         fileResult.groups{gi}=struct('metadata',metadata,'windows',windows);
         name=sprintf('%02d_%s_group%02d',fi,erase(files(fi).name,'.csi'),gi);
         writetable(windows,fullfile(runDir,[name '.csv']));
