@@ -40,6 +40,18 @@ filter=packetSpectralOutliers(synthetic);
 assert(all(filter.removed(changed)) && sum(filter.removed)<=numel(changed)+1);
 
 fprintf('PASS: fixed 20-packet windows, Desay FACF and paper amplitude compensation.\n');
+
+% Paper equations (10)-(19): the residual must have zero temporal mean for
+% every tone, and the reported stream statistic is the packet mean at lag.
+paperInput=reshape(abs(randn(1,2,20,31))+0.1,1,2,20,31);
+paper=rapidPDPaperWindow(paperInput,'acf_layers',3,'acf_lag',1);
+for s=1:numel(paper.stream_details)
+    residual=paper.stream_details{s}.residual;
+    assert(max(abs(mean(residual,1)))<1e-14);
+    assert(abs(paper.stream_phi(s)-mean(paper.packet_statistics(:,s)))<1e-14);
+end
+assert(abs(paper.score-sum(paper.stream_phi))<1e-14);
+fprintf('PASS: RapidPD paper normalization, window benchmark and three-layer ACF.\n');
 end
 
 function psi=referenceFACF(H,dmin,shift)
