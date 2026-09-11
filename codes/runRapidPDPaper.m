@@ -33,9 +33,9 @@ for j=1:2
     for wi=1:N
         idx=kept((wi-1)*20+(1:20));
         d=rapidPDPaperWindow(csi(:,:,idx,:), ...
-            'acf_layers',3,'acf_lag',C.acf_shift,'acf_mode','recursive');
+            'acf_layers',C.paper_acf_layers,'acf_lag',C.acf_shift,'acf_mode','recursive');
         literal=rapidPDPaperWindow(csi(:,:,idx,:), ...
-            'acf_layers',3,'acf_lag',C.acf_shift,'acf_mode','literal');
+            'acf_layers',C.paper_acf_layers,'acf_lag',C.acf_shift,'acf_mode','literal');
         start(wi)=g.time_seconds(idx(1)); stop(wi)=g.time_seconds(idx(end));
         max_gap(wi)=max(diff(g.time_seconds(idx)));
         phi_mean(wi)=d.diagnostic_stream_mean;
@@ -56,7 +56,8 @@ for j=1:2
     metadata=rmfield(g,{'csi_raw','packet_csi'});
     metadata.selected_rx_indices=selectedRx; metadata.audit=audit;
     metadata.processing_order={'remove_spectral_outliers','amplitude_normalize', ...
-        'per_tone_window_mean','subtract_window_mean','three_layer_acf','lag_statistic'};
+        'per_tone_window_mean','subtract_window_mean', ...
+        sprintf('%d_layer_acf',C.paper_acf_layers),'lag_statistic'};
     Result(j)=struct('name',names(j),'filter',filter,'windows',W,'metadata',metadata);
     for s=1:size(stream_phi_formula_sum,2)
         rows(end+1,:)={names(j),s,size(csi,3),sum(filter.removed),sum(filter.keep),N, ... %#ok<AGROW>
@@ -88,9 +89,11 @@ for s=1:streamCount
     xlabel('Time from recording start (s)'); ylabel('\phi_q = sum_t \psi_n(t)');
     title(sprintf('Rx stream %d: equation (19)',s));
 end
-sgtitle(sprintf('RapidPD per-Rx scores: no averaging or summing across receive chains, lag=%d',C.acf_shift));
+sgtitle(sprintf('RapidPD per-Rx scores: %d-layer ACF, no cross-Rx aggregation, lag=%d', ...
+    C.paper_acf_layers,C.acf_shift));
 
-out=fullfile(C.path_res,['rapidpd_paper_' char(datetime('now','Format','yyyyMMdd_HHmmss_SSS'))]);
+out=fullfile(C.path_res,sprintf('rapidpd_paper_%dlayer_%s',C.paper_acf_layers, ...
+    char(datetime('now','Format','yyyyMMdd_HHmmss_SSS'))));
 mkdir(out);
 for j=1:2
     writetable(Result(j).filter.table,fullfile(out,sprintf('input_%d_packet_filter.csv',j)));

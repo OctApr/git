@@ -3,6 +3,7 @@ function testRapidPD
 codeDir=fileparts(fileparts(mfilename('fullpath')));
 addpath(codeDir,fullfile(codeDir,'my_function'));
 C=configLoad; rng(20260909);
+assert(C.paper_acf_layers==3 && configLoad('paper_acf_layers',1).paper_acf_layers==1);
 
 w=winSplit((0:39)'/20,C);
 assert(numel(w)==2 && isequal(w(1).indices,1:20) && isequal(w(2).indices,21:40));
