@@ -50,6 +50,12 @@ for j=1:2
         'VariableNames',{'start','stop','max_gap','packets','diagnostic_stream_mean', ...
         'Phi_text_average','Phi_formula_sum','Phi_literal_formula_sum'});
     for s=1:size(stream_phi_formula_sum,2)
+        if strcmp(string(C.paper_time_aggregation),"mean")
+            motionScore=stream_phi_average(:,s);
+        else
+            motionScore=stream_phi_formula_sum(:,s);
+        end
+        W.(sprintf('stream_%d_motion_score',s))=motionScore;
         W.(sprintf('stream_%d_phi_formula_sum',s))=stream_phi_formula_sum(:,s);
         W.(sprintf('stream_%d_phi_time_average',s))=stream_phi_average(:,s);
     end
@@ -61,13 +67,15 @@ for j=1:2
     Result(j)=struct('name',names(j),'filter',filter,'windows',W,'metadata',metadata);
     for s=1:size(stream_phi_formula_sum,2)
         rows(end+1,:)={names(j),s,size(csi,3),sum(filter.removed),sum(filter.keep),N, ... %#ok<AGROW>
+            safeMean(W.(sprintf('stream_%d_motion_score',s))), ...
             safeMean(stream_phi_formula_sum(:,s)),safeMean(stream_phi_average(:,s))};
-        fprintf('%s, Rx stream %d: equation-(19) phi %.6f; time average %.6f\n', ...
-            names(j),s,safeMean(stream_phi_formula_sum(:,s)),safeMean(stream_phi_average(:,s)));
+        fprintf('%s, Rx stream %d: motion score %.6f; equation-(19) sum %.6f; time average %.6f\n', ...
+            names(j),s,safeMean(W.(sprintf('stream_%d_motion_score',s))), ...
+            safeMean(stream_phi_formula_sum(:,s)),safeMean(stream_phi_average(:,s)));
     end
 end
 Summary=cell2table(rows,'VariableNames',{'input','stream','original_packets','removed_packets', ...
-    'retained_packets','windows','mean_phi_formula_sum','mean_phi_time_average'});
+    'retained_packets','windows','mean_motion_score','mean_phi_formula_sum','mean_phi_time_average'});
 disp(Summary);
 
 visibility='off'; if C.show_figures, visibility='on'; end
@@ -79,18 +87,23 @@ tiledlayout(1,streamCount,'TileSpacing','compact','Padding','compact');
 for s=1:streamCount
     nexttile; hold on;
     for j=1:2
-        field=sprintf('stream_%d_phi_formula_sum',s);
+        field=sprintf('stream_%d_motion_score',s);
         if ismember(field,Result(j).windows.Properties.VariableNames)
             plot(Result(j).windows.stop,Result(j).windows.(field),styles{j}, ...
                 'LineWidth',1.4,'DisplayName',Result(j).name);
         end
     end
     grid on; legend('Interpreter','none','Location','best');
-    xlabel('Time from recording start (s)'); ylabel('\phi_q = sum_t \psi_n(t)');
-    title(sprintf('Rx stream %d: equation (19)',s));
+    xlabel('Time from recording start (s)');
+    if strcmp(string(C.paper_time_aggregation),"mean")
+        ylabel('\phi_q = (1/T) sum_t \psi_n(t)'); scaleName='window mean';
+    else
+        ylabel('\phi_q = sum_t \psi_n(t)'); scaleName='window sum';
+    end
+    title(sprintf('Rx stream %d: %s',s,scaleName));
 end
-sgtitle(sprintf('RapidPD per-Rx scores: %d-layer ACF, no cross-Rx aggregation, lag=%d', ...
-    C.paper_acf_layers,C.acf_shift));
+sgtitle(sprintf('RapidPD per-Rx scores: %d-layer ACF, %s, lag=%d', ...
+    C.paper_acf_layers,C.paper_time_aggregation,C.acf_shift));
 
 out=fullfile(C.path_res,sprintf('rapidpd_paper_%dlayer_%s',C.paper_acf_layers, ...
     char(datetime('now','Format','yyyyMMdd_HHmmss_SSS'))));
