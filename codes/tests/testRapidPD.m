@@ -49,8 +49,27 @@ for s=1:numel(paper.stream_details)
     residual=paper.stream_details{s}.residual;
     assert(max(abs(mean(residual,1)))<1e-14);
     assert(abs(paper.stream_phi(s)-mean(paper.packet_statistics(:,s)))<1e-14);
+    assert(abs(paper.stream_phi_formula_sum(s)-sum(paper.packet_statistics(:,s)))<1e-14);
 end
 assert(abs(paper.score-sum(paper.stream_phi))<1e-14);
+assert(abs(paper.Phi_formula_sum-20*paper.Phi_text_average)<1e-12);
+
+% FFT implementation must equal the explicit product sum in equation (16)
+% after the common 1/K factor cancels through equation (14).
+smallHD=randn(4,9);
+[rhoFFT,~]=rapidPDMultiLayerACF(smallHD,1,'literal');
+rhoDirect=zeros(size(smallHD));
+for t=1:size(smallHD,1)
+    for k=0:size(smallHD,2)-1
+        gamma=sum(smallHD(t,1:end-k).*smallHD(t,1+k:end))/size(smallHD,2);
+        gamma0=sum(smallHD(t,:).^2)/size(smallHD,2);
+        rhoDirect(t,k+1)=gamma/gamma0;
+    end
+end
+assert(max(abs(rhoFFT-rhoDirect),[],'all')<1e-12);
+literal=rapidPDPaperWindow(paperInput,'acf_layers',3,'acf_lag',1,'acf_mode','literal');
+oneLayer=rapidPDPaperWindow(paperInput,'acf_layers',1,'acf_lag',1,'acf_mode','literal');
+assert(max(abs(literal.packet_statistics-oneLayer.packet_statistics),[],'all')<1e-14);
 fprintf('PASS: RapidPD paper normalization, window benchmark and three-layer ACF.\n');
 end
 

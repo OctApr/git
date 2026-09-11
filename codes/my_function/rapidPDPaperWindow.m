@@ -5,6 +5,7 @@ function Detail = rapidPDPaperWindow(csi_split,varargin)
 p=inputParser;
 addParameter(p,'acf_layers',3,@(x)isnumeric(x)&&isscalar(x)&&x>=1&&mod(x,1)==0);
 addParameter(p,'acf_lag',1,@(x)isnumeric(x)&&isscalar(x)&&x>=1&&mod(x,1)==0);
+addParameter(p,'acf_mode','recursive',@(x)ismember(string(x),["recursive","literal"]));
 parse(p,varargin{:});
 
 ntx=size(csi_split,1); nrx=size(csi_split,2);
@@ -12,7 +13,7 @@ T=size(csi_split,3); F=size(csi_split,4);
 assert(T==20,'RapidPD:Window','Paper experiment requires exactly 20 packets.');
 assert(p.Results.acf_lag<F,'RapidPD:Lag','ACF lag must be smaller than tone count.');
 
-S=ntx*nrx; psi=nan(T,S); phi=nan(1,S);
+S=ntx*nrx; psi=nan(T,S); phiAverage=nan(1,S); phiFormulaSum=nan(1,S);
 details=cell(1,S);
 for rx=1:nrx
     for tx=1:ntx
@@ -21,9 +22,10 @@ for rx=1:nrx
         Hbar=mean(H,1);                                     % (12)
         HD=H-Hbar;                                          % (13)
         if max(abs(HD(:)))<=32*eps(max(H(:))), HD(:)=0; end
-        [rho,layers]=rapidPDMultiLayerACF(HD,p.Results.acf_layers);
+        [rho,layers]=rapidPDMultiLayerACF(HD,p.Results.acf_layers,p.Results.acf_mode);
         psi(:,s)=rho(:,p.Results.acf_lag+1);                % (18)
-        phi(s)=mean(psi(:,s)); % paper calls phi an average; (19) omits 1/T
+        phiAverage(s)=mean(psi(:,s)); % prose/Fig. 6 calls phi an average
+        phiFormulaSum(s)=sum(psi(:,s)); % printed equation (19)
         details{s}=struct('normalized_amplitude',H,'window_mean',Hbar, ...
             'residual',HD,'acf_layers',{layers});
     end
@@ -31,9 +33,11 @@ end
 
 % The paper sums Tx-Rx streams for overall Phi.  Keep a mean-scale score as
 % well because AX210 has 1Tx-2Rx rather than the paper's 2Tx-1Rx topology.
-Detail=struct('packet_statistics',psi,'stream_phi',phi, ...
-    'score',sum(phi),'score_stream_sum',sum(phi), ...
-    'score_stream_mean',mean(phi),'stream_details',{details}, ...
+Detail=struct('packet_statistics',psi,'stream_phi',phiAverage, ...
+    'stream_phi_average',phiAverage,'stream_phi_formula_sum',phiFormulaSum, ...
+    'score',sum(phiAverage),'Phi_text_average',sum(phiAverage), ...
+    'Phi_formula_sum',sum(phiFormulaSum),'diagnostic_stream_mean',mean(phiAverage), ...
+    'stream_details',{details}, ...
     'acf_layers',p.Results.acf_layers,'acf_lag',p.Results.acf_lag, ...
-    'time_aggregation','mean','stream_aggregation','sum');
+    'acf_mode',string(p.Results.acf_mode),'stream_aggregation','sum');
 end
