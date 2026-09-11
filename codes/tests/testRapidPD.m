@@ -51,7 +51,8 @@ for s=1:numel(paper.stream_details)
     assert(abs(paper.stream_phi(s)-mean(paper.packet_statistics(:,s)))<1e-14);
     assert(abs(paper.stream_phi_formula_sum(s)-sum(paper.packet_statistics(:,s)))<1e-14);
 end
-assert(abs(paper.score-sum(paper.stream_phi))<1e-14);
+assert(abs(paper.score-sum(paper.stream_phi_formula_sum))<1e-14);
+assert(abs(paper.Phi-paper.Phi_formula_sum)<1e-14);
 assert(abs(paper.Phi_formula_sum-20*paper.Phi_text_average)<1e-12);
 
 % FFT implementation must equal the explicit product sum in equation (16)
